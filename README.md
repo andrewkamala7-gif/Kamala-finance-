@@ -1,324 +1,492 @@
-[index.html](https://github.com/user-attachments/files/27119182/index.html)
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NovaSignals - Crypto Analysis Engine</title>
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com/3.4.1"></script>
-    
-    <!-- React & ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
-    
-    <!-- Prop-Types (Required by Recharts UMD) -->
-    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
-
-    <!-- Recharts (Must come after React and Prop-Types) -->
-    <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
-    
-    <!-- Babel -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
+    <title>Ultimate PA Confluence Scanner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: '#0B0E14',
+                        darker: '#05070A',
+                        panel: '#151924',
+                        border: '#2A2E39',
+                        primary: '#2962FF',
+                        success: '#089981',
+                        danger: '#F23645',
+                        warning: '#FF9800'
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
-        
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #020617;
-            color: #f1f5f9;
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;700;900&display=swap');
+        body { 
+            background-color: #05070A; 
+            color: #D1D4DC; 
+            font-family: 'Inter', sans-serif; 
         }
-
-        .mono { font-family: 'JetBrains+Mono', monospace; }
-
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #020617; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
-
-        .signal-pulse {
-            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: .5; }
-        }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        #chart-container { position: relative; width: 100%; height: 50vh; min-height: 400px; border-bottom: 1px solid #2A2E39; }
+        .glass-panel { background: rgba(21, 25, 36, 0.7); backdrop-filter: blur(10px); border: 1px solid #2A2E39; }
+        .sticky-chart-wrap { position: sticky; top: 0; z-index: 50; background: #05070A; }
+        .strategy-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
+        .signal-card { border-left: 3px solid transparent; transition: all 0.2s; }
+        .signal-card.bullish { border-left-color: #089981; }
+        .signal-card.bearish { border-left-color: #F23645; }
     </style>
 </head>
-<body>
-    <div id="root"></div>
+<body class="overflow-x-hidden">
 
-    <script type="text/babel">
-        const { useState, useEffect, useRef, useMemo } = React;
+    <!-- Navbar -->
+    <nav class="h-14 border-b border-border flex items-center justify-between px-6 bg-panel sticky top-0 z-[60]">
+        <div class="flex items-center gap-3">
+            <div class="bg-primary p-1.5 rounded shadow-lg shadow-primary/20">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>
+            </div>
+            <h1 class="text-sm font-black text-white tracking-widest uppercase italic">Confluence V3</h1>
+        </div>
         
-        // Use window.Recharts to ensure we access the UMD global correctly
-        const { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } = window.Recharts;
+        <div class="flex items-center gap-2">
+            <div class="flex bg-dark rounded-md p-1 border border-border">
+                <select id="symbol-select" class="bg-transparent text-[10px] font-bold px-2 py-1 outline-none text-white cursor-pointer uppercase">
+                    <option value="BTCUSDT">BTC/USDT</option>
+                    <option value="ETHUSDT">ETH/USDT</option>
+                    <option value="SOLUSDT">SOL/USDT</option>
+                    <option value="BNBUSDT">BNB/USDT</option>
+                </select>
+                <div class="w-[1px] bg-border mx-1"></div>
+                <select id="interval-select" class="bg-transparent text-[10px] font-bold px-2 py-1 outline-none text-white cursor-pointer">
+                    <option value="15m">15M</option>
+                    <option value="1h" selected>1H</option>
+                    <option value="4h">4H</option>
+                    <option value="1d">1D</option>
+                </select>
+            </div>
+        </div>
+    </nav>
 
-        // --- Constants ---
-        const PAIRS = [
-            { id: 'btcusdt', symbol: 'BTC/USDT', name: 'Bitcoin' },
-            { id: 'ethusdt', symbol: 'ETH/USDT', name: 'Ethereum' },
-            { id: 'solusdt', symbol: 'SOL/USDT', name: 'Solana' },
-            { id: 'bnbusdt', symbol: 'BNB/USDT', name: 'Binance Coin' },
-            { id: 'xrpusdt', symbol: 'XRP/USDT', name: 'Ripple' },
-            { id: 'linkusdt', symbol: 'LINK/USDT', name: 'Chainlink' },
-            { id: 'adausdt', symbol: 'ADA/USDT', name: 'Cardano' }
+    <main class="flex flex-col lg:flex-row min-h-screen">
+        
+        <!-- Left Side: Long scrollable analysis -->
+        <div class="flex-1 order-2 lg:order-1 p-4 lg:p-8 space-y-10 bg-darker">
+            
+            <!-- Dashboard HUD -->
+            <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="glass-panel p-6 rounded-2xl">
+                    <h3 class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-3">Market Structure</h3>
+                    <div id="ms-value" class="text-3xl font-black text-white">SCANNING...</div>
+                    <div class="mt-2 flex items-center gap-2">
+                        <div id="ms-dot" class="w-2 h-2 rounded-full bg-gray-600"></div>
+                        <span id="ms-desc" class="text-[11px] text-gray-400 font-medium">Analyzing Swing Points</span>
+                    </div>
+                </div>
+                
+                <div class="glass-panel p-6 rounded-2xl">
+                    <h3 class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-3">Dynamic S/R Zones</h3>
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center bg-danger/10 p-2 rounded border border-danger/20">
+                            <span class="text-[10px] font-bold text-danger">CEILING</span>
+                            <span id="res-price" class="text-sm font-bold text-white mono">0.00</span>
+                        </div>
+                        <div class="flex justify-between items-center bg-success/10 p-2 rounded border border-success/20">
+                            <span class="text-[10px] font-bold text-success">FLOOR</span>
+                            <span id="sup-price" class="text-sm font-bold text-white mono">0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="v-card" class="glass-panel p-6 rounded-2xl border-b-4 border-warning transition-all duration-500">
+                    <h3 class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-3">Confluence Verdict</h3>
+                    <div id="v-value" class="text-3xl font-black text-white italic">NEUTRAL</div>
+                    <p id="v-desc" class="text-[11px] text-gray-400 mt-2 font-medium">AGGREGATING SIGNALS...</p>
+                </div>
+            </section>
+
+            <!-- Strategy Feed -->
+            <section class="space-y-6">
+                <div class="flex items-center justify-between border-b border-border pb-4">
+                    <h2 class="text-xl font-black text-white tracking-tighter">STRATEGY LAYER AGGREGATION</h2>
+                    <div id="signal-count" class="text-[10px] font-bold bg-primary/20 text-primary px-3 py-1 rounded-full">0 ACTIVE TRIGGERS</div>
+                </div>
+
+                <div class="strategy-grid" id="main-strategy-feed">
+                    <!-- Strategies are injected here -->
+                </div>
+            </section>
+
+            <!-- Comprehensive Signal Log -->
+            <section class="space-y-4">
+                <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest">Historical Signal Timeline</h3>
+                <div class="glass-panel rounded-2xl overflow-hidden">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead class="bg-panel text-gray-500 font-bold uppercase text-[9px] tracking-widest">
+                            <tr>
+                                <th class="p-4 border-b border-border">Timestamp</th>
+                                <th class="p-4 border-b border-border">Strategy</th>
+                                <th class="p-4 border-b border-border">Type</th>
+                                <th class="p-4 border-b border-border text-right">Trigger Price</th>
+                            </tr>
+                        </thead>
+                        <tbody id="signal-table-body" class="divide-y divide-border/30">
+                            <!-- Rows injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Education / Logic Disclosure -->
+            <section class="p-8 rounded-3xl bg-gradient-to-br from-panel to-darker border border-border">
+                <h4 class="text-lg font-black text-white mb-4">How V3 Confluence Works</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm text-gray-400 leading-relaxed">
+                    <div class="space-y-4">
+                        <p><strong class="text-primary uppercase text-[10px] block mb-1">Layer 1: Candlestick Patterns</strong><br>We monitor every closing candle for exhaustion (Pin Bars), reversal strength (Engulfings), and indecision (Dojis). These are the first line of defense.</p>
+                        <p><strong class="text-success uppercase text-[10px] block mb-1">Layer 2: Structural Zones</strong><br>The engine identifies "S/R Flips" and "Order Blocks" where institutional liquidity typically resides.</p>
+                    </div>
+                    <div class="space-y-4">
+                        <p><strong class="text-warning uppercase text-[10px] block mb-1">Layer 3: Statistical Volatility</strong><br>Bollinger Band deviations detect when price is mathematically overextended from its mean (Mean Reversion).</p>
+                        <p><strong class="text-white uppercase text-[10px] block mb-1">Confluence Requirement</strong><br>A "Strong" verdict is only issued when at least 3 layers align at the same price point.</p>
+                    </div>
+                </div>
+            </section>
+            
+            <div class="h-20"></div>
+        </div>
+
+        <!-- Right Side: Pinned Chart -->
+        <div class="w-full lg:w-[480px] lg:h-screen lg:sticky lg:top-0 order-1 lg:order-2 shrink-0 border-l border-border bg-dark">
+            <div class="sticky-chart-wrap shadow-2xl">
+                <div class="bg-panel h-10 flex items-center px-4 justify-between border-b border-border">
+                    <div class="flex items-center gap-4">
+                        <span id="c-sym" class="text-xs font-black text-white tracking-widest">BTCUSDT</span>
+                        <div class="flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></span>
+                            <span id="c-price" class="text-xs font-mono text-white">--</span>
+                        </div>
+                    </div>
+                    <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Global Feed</div>
+                </div>
+                <div id="chart-container"></div>
+            </div>
+            
+            <div class="p-6 space-y-6 hidden lg:block overflow-y-auto max-h-[calc(100vh-50vh-40px)] scrollbar-hide">
+                <div class="flex justify-between items-center">
+                    <h4 class="text-[10px] font-black text-gray-500 uppercase tracking-widest">Rapid Alerts</h4>
+                    <button onclick="clearLogs()" class="text-[9px] text-gray-600 hover:text-white uppercase">Clear</button>
+                </div>
+                <div id="rapid-log" class="space-y-3">
+                    <!-- Mini signals -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Strategy Definitions
+        const STRATEGIES = [
+            { id: 'candle', name: 'Candlestick PA', desc: 'Pin Bars, Engulfings & Reversal patterns.', color: 'primary' },
+            { id: 'structure', name: 'Market Structure', desc: 'Breakouts and Retests of key S/R flips.', color: 'success' },
+            { id: 'volatility', name: 'Mean Reversion', desc: 'BB Exhaustion and Standard Deviation bands.', color: 'warning' },
+            { id: 'institutional', name: 'Order Blocks', desc: 'High volume institutional accumulation zones.', color: 'danger' }
         ];
 
-        // --- Components ---
-        const Icon = ({ name, className }) => {
-            const icons = {
-                trend: <path d="M22 7L13.5 15.5L8.5 10.5L2 17M16 7H22V13" />,
-                bolt: <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />,
-                bell: <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />,
-                shield: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            };
-            return (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                    {icons[name]}
-                </svg>
-            );
+        const state = {
+            symbol: 'BTCUSDT',
+            interval: '1h',
+            data: [],
+            chart: null,
+            series: null,
+            levels: { sup: 0, res: 0 },
+            signals: []
         };
 
-        function App() {
-            const [activeId, setActiveId] = useState(PAIRS[0].id);
-            const [marketData, setMarketData] = useState({});
-            const [history, setHistory] = useState({});
-            const [signals, setSignals] = useState({});
-            
-            const ws = useRef(null);
+        const dom = {
+            symbol: document.getElementById('symbol-select'),
+            interval: document.getElementById('interval-select'),
+            price: document.getElementById('c-price'),
+            msValue: document.getElementById('ms-value'),
+            msDot: document.getElementById('ms-dot'),
+            msDesc: document.getElementById('ms-desc'),
+            supPrice: document.getElementById('sup-price'),
+            resPrice: document.getElementById('res-price'),
+            verdict: document.getElementById('v-value'),
+            verdictDesc: document.getElementById('v-desc'),
+            verdictCard: document.getElementById('v-card'),
+            feed: document.getElementById('main-strategy-feed'),
+            rapidLog: document.getElementById('rapid-log'),
+            table: document.getElementById('signal-table-body'),
+            sigCount: document.getElementById('signal-count')
+        };
 
-            // Logic to determine signal based on price action
-            const getSignal = (currentPrice, hist) => {
-                if (!hist || hist.length < 10) return { type: 'NEUTRAL', strength: 0, reason: 'Accumulating Data' };
-                
-                const prices = hist.map(d => d.price);
-                const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
-                const lastPrice = prices[prices.length - 1];
-                const prevPrice = prices[prices.length - 2];
-                
-                const momentum = lastPrice > prevPrice;
-                const isAboveAvg = lastPrice > avg;
+        function initChart() {
+            state.chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
+                layout: { background: { type: 'solid', color: '#05070A' }, textColor: '#868e96', fontSize: 11, fontFamily: 'JetBrains Mono' },
+                grid: { vertLines: { color: '#151924' }, horzLines: { color: '#151924' } },
+                rightPriceScale: { borderColor: '#2A2E39', autoScale: true, alignLabels: true },
+                timeScale: { borderColor: '#2A2E39', timeVisible: true, secondsVisible: false },
+                crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { labelBackgroundColor: '#2962FF' }, horzLine: { labelBackgroundColor: '#2962FF' } }
+            });
 
-                if (momentum && isAboveAvg) return { type: 'STRONG BUY', strength: 85, color: 'text-green-400', bg: 'bg-green-500/10' };
-                if (!momentum && !isAboveAvg) return { type: 'STRONG SELL', strength: 92, color: 'text-red-400', bg: 'bg-red-500/10' };
-                if (momentum && !isAboveAvg) return { type: 'WEAK BUY', strength: 45, color: 'text-emerald-500', bg: 'bg-emerald-500/10' };
-                return { type: 'NEUTRAL', strength: 10, color: 'text-slate-400', bg: 'bg-slate-500/10' };
-            };
+            state.series = state.chart.addCandlestickSeries({
+                upColor: '#089981', downColor: '#F23645', borderVisible: false, wickUpColor: '#089981', wickDownColor: '#F23645'
+            });
 
-            useEffect(() => {
-                const streams = PAIRS.map(p => `${p.id}@trade`).join('/');
-                ws.current = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`);
-
-                ws.current.onmessage = (e) => {
-                    const { data } = JSON.parse(e.data);
-                    const symbol = data.s.toLowerCase();
-                    const price = parseFloat(data.p);
-
-                    setMarketData(prev => ({ ...prev, [symbol]: price }));
-                    
-                    setHistory(prev => {
-                        const symHist = prev[symbol] || [];
-                        const newPoint = { time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), price };
-                        const updated = [...symHist, newPoint].slice(-40);
-                        
-                        // Update signal
-                        const signal = getSignal(price, updated);
-                        setSignals(s => ({ ...s, [symbol]: signal }));
-                        
-                        return { ...prev, [symbol]: updated };
-                    });
-                };
-
-                return () => {
-                    if (ws.current) ws.current.close();
-                };
-            }, []);
-
-            const activePair = PAIRS.find(p => p.id === activeId);
-            const currentSignal = signals[activeId] || { type: 'ANALYZING', strength: 0, color: 'text-slate-500' };
-
-            return (
-                <div className="flex h-screen overflow-hidden">
-                    {/* Sidebar */}
-                    <aside className="w-80 bg-slate-950 border-r border-slate-800 flex flex-col">
-                        <div className="p-6 border-b border-slate-800 flex items-center gap-3">
-                            <div className="bg-indigo-600 p-2 rounded-lg shadow-lg shadow-indigo-500/20">
-                                <Icon name="bolt" className="w-5 h-5 text-white" />
-                            </div>
-                            <h1 className="font-bold text-xl tracking-tight">Nova<span className="text-indigo-400">Signals</span></h1>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2">
-                            <p className="text-[10px] uppercase font-bold text-slate-500 px-3 py-2 tracking-widest">Market Monitoring</p>
-                            {PAIRS.map(pair => {
-                                const price = marketData[pair.id];
-                                const signal = signals[pair.id];
-                                return (
-                                    <button 
-                                        key={pair.id}
-                                        onClick={() => setActiveId(pair.id)}
-                                        className={`w-full p-4 rounded-xl flex items-center justify-between transition-all border ${activeId === pair.id ? 'bg-indigo-600/10 border-indigo-500/50' : 'bg-transparent border-transparent hover:bg-slate-900'}`}
-                                    >
-                                        <div className="text-left">
-                                            <div className="font-bold text-sm">{pair.symbol}</div>
-                                            <div className="text-[10px] font-mono text-slate-400">${price?.toLocaleString()}</div>
-                                        </div>
-                                        {signal && (
-                                            <div className={`text-[10px] font-bold px-2 py-1 rounded ${signal.bg} ${signal.color}`}>
-                                                {signal.type}
-                                            </div>
-                                        )}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </aside>
-
-                    {/* Main Content */}
-                    <main className="flex-1 flex flex-col bg-[#020617]">
-                        <header className="h-20 border-b border-slate-800 flex items-center justify-between px-8 bg-slate-950/50 backdrop-blur-xl sticky top-0 z-10">
-                            <div className="flex items-center gap-6">
-                                <div>
-                                    <h2 className="text-2xl font-bold">{activePair.symbol}</h2>
-                                    <p className="text-xs text-slate-500">{activePair.name} / US Dollar</p>
-                                </div>
-                                <div className="h-8 w-[1px] bg-slate-800"></div>
-                                <div>
-                                    <p className="text-xs text-slate-500 mb-1">Live Price</p>
-                                    <p className="text-xl font-mono font-bold text-indigo-400">${marketData[activeId]?.toLocaleString() || '---'}</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-2 bg-slate-900 rounded-full px-4 py-2 border border-slate-800">
-                                    <div className="w-2 h-2 rounded-full bg-green-500 signal-pulse"></div>
-                                    <span className="text-xs font-bold text-slate-300">WebSocket Connected</span>
-                                </div>
-                            </div>
-                        </header>
-
-                        <div className="p-8 space-y-8 overflow-y-auto flex-1 custom-scrollbar">
-                            {/* Signal Hero Card */}
-                            <div className={`rounded-3xl p-8 border border-slate-800 shadow-2xl relative overflow-hidden bg-gradient-to-br from-slate-900 to-black`}>
-                                <div className="absolute top-0 right-0 p-8 opacity-10">
-                                    <Icon name="trend" className="w-32 h-32" />
-                                </div>
-                                <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-8">
-                                    <div className="md:col-span-2">
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <span className="text-xs font-black tracking-widest uppercase text-indigo-400">Current AI Signal</span>
-                                            <div className="h-[1px] flex-1 bg-slate-800"></div>
-                                        </div>
-                                        <h3 className={`text-6xl font-black mb-4 tracking-tighter ${currentSignal.color}`}>
-                                            {currentSignal.type}
-                                        </h3>
-                                        <p className="text-slate-400 max-w-md">
-                                            Our technical engine has detected a {currentSignal.type.toLowerCase()} opportunity based on real-time volume and price momentum analysis.
-                                        </p>
-                                    </div>
-                                    <div className="flex flex-col justify-center items-center md:items-end">
-                                        <div className="text-center md:text-right">
-                                            <p className="text-xs text-slate-500 uppercase font-bold tracking-widest mb-1">Signal Strength</p>
-                                            <div className="text-5xl font-mono font-black text-white">{currentSignal.strength}%</div>
-                                            <div className="w-full h-2 bg-slate-800 rounded-full mt-4 overflow-hidden w-40">
-                                                <div 
-                                                    className="h-full bg-indigo-500 transition-all duration-1000" 
-                                                    style={{ width: `${currentSignal.strength}%` }}
-                                                ></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Chart Area */}
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                <div className="lg:col-span-2 bg-slate-950 border border-slate-800 rounded-3xl p-6 h-[450px] flex flex-col">
-                                    <div className="flex items-center justify-between mb-6">
-                                        <h4 className="font-bold flex items-center gap-2"><Icon name="trend" className="w-4 h-4 text-indigo-400" /> Technical Chart</h4>
-                                        <div className="flex gap-2">
-                                            {['Live', '1H', '4H', '1D'].map(t => (
-                                                <button key={t} className={`px-3 py-1 text-[10px] font-bold rounded ${t === 'Live' ? 'bg-indigo-600' : 'bg-slate-900 hover:bg-slate-800'}`}>
-                                                    {t}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div className="flex-1 w-full min-h-0">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <AreaChart data={history[activeId] || []}>
-                                                <defs>
-                                                    <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
-                                                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                                                    </linearGradient>
-                                                </defs>
-                                                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                                                <XAxis dataKey="time" hide />
-                                                <YAxis domain={['auto', 'auto']} stroke="#475569" tick={{fontSize: 10}} width={60} />
-                                                <Tooltip 
-                                                    contentStyle={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '12px' }}
-                                                    itemStyle={{ color: '#818cf8' }}
-                                                />
-                                                <Area 
-                                                    type="monotone" 
-                                                    dataKey="price" 
-                                                    stroke="#6366f1" 
-                                                    strokeWidth={3} 
-                                                    fillOpacity={1} 
-                                                    fill="url(#chartGradient)" 
-                                                    isAnimationActive={false} 
-                                                />
-                                            </AreaChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                </div>
-
-                                {/* Checklist/Strategy */}
-                                <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 space-y-6">
-                                    <h4 className="font-bold flex items-center gap-2"><Icon name="shield" className="w-4 h-4 text-indigo-400" /> Analysis Report</h4>
-                                    
-                                    <div className="space-y-4">
-                                        <div className="flex items-start gap-3 p-3 bg-slate-900/50 rounded-xl border border-slate-800">
-                                            <div className="w-5 h-5 rounded bg-green-500/20 flex items-center justify-center text-green-500 text-[10px] font-bold mt-0.5">?</div>
-                                            <div>
-                                                <p className="text-xs font-bold text-slate-200">Volume Profile</p>
-                                                <p className="text-[10px] text-slate-500">Positive inflow detected in last 5m.</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-start gap-3 p-3 bg-slate-900/50 rounded-xl border border-slate-800">
-                                            <div className="w-5 h-5 rounded bg-indigo-500/20 flex items-center justify-center text-indigo-400 text-[10px] font-bold mt-0.5">i</div>
-                                            <div>
-                                                <p className="text-xs font-bold text-slate-200">RSI Indicator</p>
-                                                <p className="text-[10px] text-slate-500">Currently neutral. No overbought risk.</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-start gap-3 p-3 bg-slate-900/50 rounded-xl border border-slate-800">
-                                            <div className="w-5 h-5 rounded bg-red-500/20 flex items-center justify-center text-red-500 text-[10px] font-bold mt-0.5">!</div>
-                                            <div>
-                                                <p className="text-xs font-bold text-slate-200">Support Level</p>
-                                                <p className="text-[10px] text-slate-500">Major support at -2.4% from current.</p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-4">
-                                        <button className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2">
-                                            <Icon name="bell" className="w-4 h-4" /> Enable Signal Alerts
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </main>
-                </div>
-            );
+            const resizeObserver = new ResizeObserver(entries => {
+                requestAnimationFrame(() => {
+                    if (entries.length && state.chart) {
+                        const { width, height } = entries[0].contentRect;
+                        state.chart.applyOptions({ width, height });
+                    }
+                });
+            });
+            resizeObserver.observe(document.getElementById('chart-container'));
         }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        async function updateData() {
+            try {
+                const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${state.symbol}&interval=${state.interval}&limit=300`);
+                const klines = await r.json();
+                state.data = klines.map(k => ({
+                    time: k[0] / 1000, 
+                    open: parseFloat(k[1]), 
+                    high: parseFloat(k[2]), 
+                    low: parseFloat(k[3]), 
+                    close: parseFloat(k[4]), 
+                    volume: parseFloat(k[5])
+                }));
+                state.series.setData(state.data);
+                processAnalysis();
+            } catch (err) { console.error("Update Error:", err); }
+        }
+
+        function processAnalysis() {
+            if (!state.data.length) return;
+            const latest = state.data[state.data.length - 1];
+            dom.price.textContent = latest.close.toLocaleString(undefined, {minimumFractionDigits: 2});
+            dom.price.className = `text-xs font-mono ${latest.close >= latest.open ? 'text-success' : 'text-danger'}`;
+            document.getElementById('c-sym').textContent = state.symbol;
+
+            // 1. Core Logic Modules
+            analyzeStructure();
+            const triggers = aggregateSignals();
+            
+            // 2. Render UI Layers
+            renderStrategyCards(triggers);
+            renderSignalHistory(triggers);
+            updateVerdict(triggers);
+            
+            // 3. Chart Markers
+            const markers = triggers.map(s => ({
+                time: s.time,
+                position: s.side === 'BULL' ? 'belowBar' : 'aboveBar',
+                color: s.side === 'BULL' ? '#089981' : '#F23645',
+                shape: s.side === 'BULL' ? 'arrowUp' : 'arrowDown',
+                text: s.shortLabel
+            }));
+            state.series.setMarkers(markers);
+        }
+
+        function analyzeStructure() {
+            const lookback = state.data.slice(-50);
+            const high = Math.max(...lookback.map(d => d.high));
+            const low = Math.min(...lookback.map(d => d.low));
+            
+            state.levels.res = high;
+            state.levels.sup = low;
+            dom.resPrice.textContent = high.toFixed(2);
+            dom.supPrice.textContent = low.toFixed(2);
+
+            const recentCloses = state.data.slice(-20).map(d => d.close);
+            const isUptrend = recentCloses[19] > recentCloses[0];
+            
+            dom.msValue.textContent = isUptrend ? "BULLISH" : "BEARISH";
+            dom.msValue.className = `text-3xl font-black ${isUptrend ? 'text-success' : 'text-danger'} italic`;
+            dom.msDot.className = `w-2 h-2 rounded-full ${isUptrend ? 'bg-success' : 'bg-danger'}`;
+            dom.msDesc.textContent = isUptrend ? "Price Trend: Higher Highs" : "Price Trend: Lower Lows";
+        }
+
+        function aggregateSignals() {
+            const sigs = [];
+            const data = state.data;
+            
+            // Iterate back a few candles to find current triggers
+            for (let i = data.length - 30; i < data.length; i++) {
+                const c = data[i], p = data[i-1];
+                if (!p) continue;
+
+                // --- Strategy 1: Candlesticks (First ones) ---
+                const body = Math.abs(c.close - c.open);
+                const upperWick = c.high - Math.max(c.open, c.close);
+                const lowerWick = Math.min(c.open, c.close) - c.low;
+                
+                // Pin Bar Bullish
+                if (lowerWick > body * 2 && c.close > c.open) {
+                    sigs.push({ time: c.time, strategy: 'Candlestick', shortLabel: 'PINBAR', side: 'BULL', price: c.close, desc: 'Bullish Hammer detected at localized low.' });
+                }
+                // Engulfing Bullish
+                if (c.close > p.open && c.open < p.close && p.close < p.open) {
+                    sigs.push({ time: c.time, strategy: 'Candlestick', shortLabel: 'ENGULF', side: 'BULL', price: c.close, desc: 'Aggressive buyers overwhelmed sellers.' });
+                }
+                // Engulfing Bearish
+                if (c.close < p.open && c.open > p.close && p.close > p.open) {
+                    sigs.push({ time: c.time, strategy: 'Candlestick', shortLabel: 'ENGULF', side: 'BEAR', price: c.close, desc: 'Aggressive sellers overwhelmed buyers.' });
+                }
+
+                // --- Strategy 2: Structure (S/R Flip) ---
+                if (c.low <= state.levels.sup * 1.001 && c.close > c.open) {
+                    sigs.push({ time: c.time, strategy: 'Structure', shortLabel: 'SUPPORT', side: 'BULL', price: c.close, desc: 'Buying pressure confirmed at floor level.' });
+                }
+                if (c.high >= state.levels.res * 0.999 && c.close < c.open) {
+                    sigs.push({ time: c.time, strategy: 'Structure', shortLabel: 'RESIST', side: 'BEAR', price: c.close, desc: 'Supply detected at historical ceiling.' });
+                }
+
+                // --- Strategy 3: Mean Reversion (Volatility) ---
+                // Simulating Bollinger Band 2.5 SD tag
+                const bbLookback = data.slice(Math.max(0, i-20), i+1).map(d => d.close);
+                const avg = bbLookback.reduce((a,b) => a+b, 0) / bbLookback.length;
+                const std = Math.sqrt(bbLookback.map(x => Math.pow(x - avg, 2)).reduce((a,b) => a+b, 0) / bbLookback.length);
+                if (c.low < avg - (std * 2.5)) {
+                    sigs.push({ time: c.time, strategy: 'Volatility', shortLabel: 'OVERSOLD', side: 'BULL', price: c.close, desc: 'Price is mathematically overextended to the downside.' });
+                }
+                if (c.high > avg + (std * 2.5)) {
+                    sigs.push({ time: c.time, strategy: 'Volatility', shortLabel: 'OVERBOUGHT', side: 'BEAR', price: c.close, desc: 'Price is mathematically overextended to the upside.' });
+                }
+
+                // --- Strategy 4: Institutional (Order Blocks) ---
+                const volAvg = data.slice(Math.max(0, i-20), i).reduce((a,b) => a + b.volume, 0) / 20;
+                if (c.volume > volAvg * 2.5) {
+                    sigs.push({ 
+                        time: c.time, 
+                        strategy: 'Institutional', 
+                        shortLabel: 'VOL-SPIKE', 
+                        side: c.close > c.open ? 'BULL' : 'BEAR', 
+                        price: c.close, 
+                        desc: 'Institutional volume detected. Large orders being filled.' 
+                    });
+                }
+            }
+            
+            return sigs.sort((a,b) => b.time - a.time);
+        }
+
+        function renderStrategyCards(triggers) {
+            dom.feed.innerHTML = '';
+            STRATEGIES.forEach(s => {
+                const latestFromStrat = triggers.find(t => t.strategy === s.name);
+                const card = document.createElement('div');
+                card.className = `glass-panel p-5 rounded-2xl signal-card ${latestFromStrat ? (latestFromStrat.side === 'BULL' ? 'bullish bg-success/5' : 'bearish bg-danger/5') : ''}`;
+                
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded bg-${s.color}/10 flex items-center justify-center text-${s.color} text-xs font-black">${s.name[0]}</div>
+                            <h4 class="text-xs font-bold text-white uppercase tracking-tighter">${s.name}</h4>
+                        </div>
+                        ${latestFromStrat ? `<span class="px-2 py-0.5 rounded bg-${latestFromStrat.side === 'BULL' ? 'success' : 'danger'}/20 text-[9px] font-black text-${latestFromStrat.side === 'BULL' ? 'success' : 'danger'}">ACTIVE</span>` : ''}
+                    </div>
+                    <p class="text-[11px] text-gray-500 leading-relaxed">${s.desc}</p>
+                    <div class="mt-4 pt-4 border-t border-border/30">
+                        ${latestFromStrat ? `
+                            <div class="flex flex-col gap-1">
+                                <div class="flex justify-between text-[10px] font-bold">
+                                    <span class="text-white">${latestFromStrat.shortLabel}</span>
+                                    <span class="mono text-gray-400">${latestFromStrat.price.toFixed(2)}</span>
+                                </div>
+                                <p class="text-[10px] text-gray-400">${latestFromStrat.desc}</p>
+                            </div>
+                        ` : '<span class="text-[9px] text-gray-600 italic uppercase">Monitoring for triggers...</span>'}
+                    </div>
+                `;
+                dom.feed.appendChild(card);
+            });
+        }
+
+        function renderSignalHistory(triggers) {
+            dom.table.innerHTML = '';
+            dom.rapidLog.innerHTML = '';
+            dom.sigCount.textContent = `${triggers.length} TOTAL SIGNALS`;
+
+            triggers.slice(0, 15).forEach((s, idx) => {
+                // Table
+                const row = document.createElement('tr');
+                row.className = "hover:bg-panel/50 cursor-pointer";
+                row.innerHTML = `
+                    <td class="p-4 text-gray-500 mono">${new Date(s.time*1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</td>
+                    <td class="p-4 font-bold text-white">${s.strategy}</td>
+                    <td class="p-4"><span class="px-2 py-0.5 rounded text-[9px] font-black ${s.side === 'BULL' ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger'}">${s.shortLabel}</span></td>
+                    <td class="p-4 text-right mono text-gray-300">${s.price.toFixed(2)}</td>
+                `;
+                row.onclick = () => {
+                    const findIdx = state.data.findIndex(d => d.time === s.time);
+                    state.chart.timeScale().setVisibleLogicalRange({ from: findIdx - 30, to: findIdx + 10 });
+                };
+                dom.table.appendChild(row);
+
+                // Rapid Log
+                if (idx < 6) {
+                    const mini = document.createElement('div');
+                    mini.className = `p-3 rounded-xl bg-panel border border-border flex items-center justify-between group hover:border-primary transition-colors cursor-pointer`;
+                    mini.innerHTML = `
+                        <div class="flex flex-col">
+                            <span class="text-[9px] font-black uppercase text-primary mb-1">${s.strategy}</span>
+                            <span class="text-[11px] font-bold text-white">${s.shortLabel} Detected</span>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-[10px] font-black ${s.side === 'BULL' ? 'text-success' : 'text-danger'}">${s.side === 'BULL' ? 'LONG' : 'SHORT'}</div>
+                            <div class="text-[9px] mono text-gray-600">${new Date(s.time*1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+                        </div>
+                    `;
+                    mini.onclick = () => row.onclick();
+                    dom.rapidLog.appendChild(mini);
+                }
+            });
+        }
+
+        function updateVerdict(triggers) {
+            const recent = triggers.filter(t => (Date.now()/1000 - t.time) < 3600); // Past hour
+            let score = 0;
+            recent.forEach(t => score += (t.side === 'BULL' ? 1 : -1));
+
+            if (score >= 2) {
+                dom.verdict.textContent = "STRONG BUY";
+                dom.verdict.className = "text-3xl font-black text-success italic";
+                dom.verdictDesc.textContent = "Multi-Layer Confluence Detected";
+                dom.verdictCard.style.borderBottomColor = '#089981';
+            } else if (score <= -2) {
+                dom.verdict.textContent = "STRONG SELL";
+                dom.verdict.className = "text-3xl font-black text-danger italic";
+                dom.verdictDesc.textContent = "Institutional Distribution Active";
+                dom.verdictCard.style.borderBottomColor = '#F23645';
+            } else {
+                dom.verdict.textContent = score > 0 ? "BULLISH BIAS" : (score < 0 ? "BEARISH BIAS" : "NEUTRAL");
+                dom.verdict.className = "text-3xl font-black text-white italic";
+                dom.verdictDesc.textContent = "Waiting for High Conviction Setup";
+                dom.verdictCard.style.borderBottomColor = '#FF9800';
+            }
+        }
+
+        function clearLogs() {
+            state.signals = [];
+            processAnalysis();
+        }
+
+        // Global Event Listeners
+        dom.symbol.onchange = (e) => { state.symbol = e.target.value; updateData(); };
+        dom.interval.onchange = (e) => { state.interval = e.target.value; updateData(); };
+
+        window.onload = () => {
+            initChart();
+            updateData();
+            setInterval(updateData, 10000); // Polling
+        };
     </script>
 </body>
 </html>
